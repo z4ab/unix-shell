@@ -1,0 +1,12 @@
+# clangd configuration for local Windows development.
+#
+# clangd defaults to an MSVC target on Windows and therefore cannot find the
+# C standard library headers that ship with the MSYS2 UCRT64 GCC toolchain.
+# Point it at that toolchain's headers so the editor matches how the project
+# is actually compiled (`your_program.sh` uses the UCRT64 GCC toolchain).
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - --target=x86_64-w64-mingw32
+    - -isystem
+    - C:/msys64/ucrt64/include

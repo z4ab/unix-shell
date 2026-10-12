@@ -12,19 +12,35 @@
 
 int find_path(char* cmd, int is_type) {
     char *path_value = strdup(getenv("PATH"));
+#ifdef _WIN32
+    // Windows executables carry an extension (.exe/.cmd/...), so try the
+    // common ones in addition to the bare name.
+    static const char *exts[] = {"", ".exe", ".cmd", ".bat", ".com"};
+#endif
     // p = strtok(str, sep) parses str and returns the next token after sep
     // if str is NULL, it parses same string
     for (char *p = strtok(path_value, PATH_LIST_SEP); p != NULL; p = strtok(NULL, PATH_LIST_SEP)) {
         // build path of cmd to check
         char full_path[1028];
+#ifdef _WIN32
+        for (size_t i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
+            sprintf(full_path, "%s/%s%s", p, cmd, exts[i]);
+            if (access(full_path, X_OK) == 0) {
+                if (is_type) {
+                    printf("%s is %s\n", cmd, full_path);
+                }
+                return 0;
+            }
+        }
+#else
         sprintf(full_path, "%s/%s", p, cmd);
-
         if (access(full_path, X_OK) == 0) {
             if (is_type) {
                 printf("%s is %s\n", cmd, full_path);
             }
             return 0;
         }
+#endif
     }
     return 1;
 }
