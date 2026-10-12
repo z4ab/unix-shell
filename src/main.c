@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #ifdef _WIN32
 #define PATH_LIST_SEP ";"
@@ -46,16 +47,16 @@ int find_path(char* cmd, int is_type) {
 }
 
 void handle_type(char *cmd) {
-    if (strcmp(cmd, "echo") == 0 ||
-        strcmp(cmd, "exit") == 0 ||
-        strcmp(cmd, "type") == 0 ||
-        strcmp(cmd, "pwd") == 0){
-        printf("%s is a shell builtin\n", cmd);
-        return;
+    const char *builtins[] = {"echo", "exit", "type", "pwd", "cd"};
+    for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
+        if (strcmp(cmd, builtins[i]) == 0) {
+            printf("%s is a shell builtin\n", cmd);
+            return;
+        }
     }
 
     if (find_path(cmd, true) != 0) {
-        printf("%s: not found\n", cmd);
+        fprintf(stderr, "%s: not found\n", cmd);
     }
 
 }
@@ -68,7 +69,7 @@ int handle_exec(char* line) {
     if (find_path(cmd, false) == 0) {
         system(full_line);
     } else {
-        printf("%s: command not found\n", cmd);
+        fprintf(stderr, "%s: command not found\n", cmd);
     }
     return 0;
 }
@@ -101,6 +102,16 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
             printf("%s\n", pwdbuf);
+        } else if (strncmp(input, "cd ", 3) == 0) {
+            char* arg = input + 3;
+            if (strcmp(arg, "~") == 0) {
+                // repoint arg to home path
+                arg = getenv("HOME");
+            }
+            if (chdir(arg) != 0) {
+                // strerror gets the string given errno, perror just prints it out
+                fprintf(stderr, "cd: %s: %s\n", arg, strerror(errno));
+            }
         }
         else {
             handle_exec(input);
