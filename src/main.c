@@ -48,7 +48,8 @@ int find_path(char* cmd, int is_type) {
 void handle_type(char *cmd) {
     if (strcmp(cmd, "echo") == 0 ||
         strcmp(cmd, "exit") == 0 ||
-        strcmp(cmd, "type") == 0) {
+        strcmp(cmd, "type") == 0 ||
+        strcmp(cmd, "pwd") == 0){
         printf("%s is a shell builtin\n", cmd);
         return;
     }
@@ -69,6 +70,7 @@ int handle_exec(char* line) {
     } else {
         printf("%s: command not found\n", cmd);
     }
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -92,7 +94,15 @@ int main(int argc, char *argv[]) {
             printf("%s\n", input + 5);
         } else if (strncmp(input, "type ", 5) == 0) {
             handle_type(input + 5);
-        } else {
+        } else if (strcmp(input, "pwd") == 0) {
+            char pwdbuf[1024];
+            if (getcwd(pwdbuf, sizeof pwdbuf) == NULL) {
+                perror("getcwd"); // print err meesage
+                return 1;
+            }
+            printf("%s\n", pwdbuf);
+        }
+        else {
             handle_exec(input);
         }
 
