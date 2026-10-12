@@ -111,14 +111,23 @@ int main(int argc, char *argv[]) {
 
         bool in_arg = false;
         bool in_single_quote = false;
+        bool in_double_quote = false;
 
         int c;
         while ((c = getchar()) != '\n' && c != '\n') {
-            // every char enclosed in quotes is in the same argument
-            // handle single quotes
-            if (c == '\'') {
+            if (c == '\\' && !in_single_quote) {
+                // escape: get next char and add to arg
+                c = getchar();
+                if (!in_arg) {
+                    args[argc++] = curr_arg + j;
+                    in_arg = true;
+                }
+                curr_arg[j++] = c;
+            } else if (c == '\'' && !in_double_quote) {
                 in_single_quote = !in_single_quote;
-            } else if ((c == ' ' || c == '\t') && !in_single_quote) {
+            } else if (c == '"' && !in_single_quote) {
+                in_double_quote = !in_double_quote;
+            } else if ((c == ' ' || c == '\t') && !in_single_quote && !in_double_quote) {
                 if (in_arg) {
                     curr_arg[j++] = '\0';
                     in_arg = false;
