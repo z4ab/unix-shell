@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #ifdef _WIN32
+#include <process.h>
 #define PATH_LIST_SEP ";"
 #else
 #include <sys/wait.h>
@@ -68,6 +69,13 @@ int handle_exec(char* args[]) {
         return -1;
     }
 
+#ifdef _WIN32
+    // Windows has no fork/exec; _spawnvp runs the program and waits for it.
+    if (_spawnvp(_P_WAIT, args[0], (const char * const *)args) == -1) {
+        perror(args[0]);
+        return -1;
+    }
+#else
     pid_t pid = fork();
     if (pid == 0) { // child
         execvp(args[0], args);
@@ -80,6 +88,7 @@ int handle_exec(char* args[]) {
     } else { // -1, meaning error
         perror("fork");
     }
+#endif
     return 0;
 }
 
@@ -152,8 +161,8 @@ int main(int argc, char *argv[]) {
             }
             printf("%s\n", pwdbuf);
         } else if (strcmp(args[0], "cd") == 0) {
-            if (strcmp(args[1], "~") == 0) {
-                // repoint arg to home path
+            if (args[1] == NULL || strcmp(args[1], "~") == 0) {
+                // no argument (or "~") means the home directory
                 args[1] = getenv("HOME");
             }
             if (chdir(args[1]) != 0) {
