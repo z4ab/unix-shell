@@ -8,6 +8,7 @@
 #ifdef _WIN32
 #define PATH_LIST_SEP ";"
 #else
+#include <sys/wait.h>
 #define PATH_LIST_SEP ":"
 #endif
 
@@ -61,15 +62,23 @@ void handle_type(char *cmd) {
 
 }
 
-int handle_exec(char* line) {
-    char full_line[1024];
-    strcpy(full_line, line);
-    char* cmd = strtok(line, " ");
+int handle_exec(char* args[]) {
+    if (find_path(args[0], false) != 0) {
+        fprintf(stderr, "%s: command not found\n", args[0]);
+        return -1;
+    }
 
-    if (find_path(cmd, false) == 0) {
-        system(full_line);
-    } else {
-        fprintf(stderr, "%s: command not found\n", cmd);
+    pid_t pid = fork();
+    if (pid == 0) { // child
+        execvp(args[0], args);
+        // if exec fails,
+        perror(args[0]);
+        _exit(127);
+    } else if (pid > 0) { // parent
+        int status;
+        waitpid(pid, &status, 0);
+    } else { // -1, meaning error
+        perror("fork");
     }
     return 0;
 }
@@ -82,39 +91,78 @@ int main(int argc, char *argv[]) {
     for (;;) {
         printf("$ ");
 
-        char input[100];
-        fgets(input, 100, stdin);
 
-        input[strlen(input) - 1] = '\0';
+        // tokenize input into args
 
-        if (strcmp(input, "exit") == 0) {
+        char* args[1024];
+        int j = 0;
+        int argc = 0;
+
+        char curr_arg[1024];
+
+        bool in_arg = false;
+        bool in_single_quote = false;
+
+        int c;
+        while ((c = getchar()) != '\n' && c != '\n') {
+            // every char enclosed in quotes is in the same argument
+            // handle single quotes
+            if (c == '\'') {
+                in_single_quote = !in_single_quote;
+            } else if ((c == ' ' || c == '\t') && !in_single_quote) {
+                if (in_arg) {
+                    curr_arg[j++] = '\0';
+                    in_arg = false;
+                }
+            } else {
+                if (!in_arg) {
+                    args[argc++] = curr_arg + j;
+                    in_arg = true;
+                }
+                curr_arg[j++] = c;
+            }
+        }
+        if (in_arg) {
+            curr_arg[j++] = '\0';
+        }
+        args[argc] = NULL;
+        if (c == EOF && argc == 0) {
+            // EOF signal on empty line, exit shell
             break;
         }
-        if (strncmp(input, "echo ", 5) == 0) {
-            // print everything after the "echo " using pointer arithmetic
-            printf("%s\n", input + 5);
-        } else if (strncmp(input, "type ", 5) == 0) {
-            handle_type(input + 5);
-        } else if (strcmp(input, "pwd") == 0) {
+
+        if (strcmp(args[0], "exit") == 0) {
+            break;
+        }
+        if (strcmp(args[0], "echo") == 0) {
+            // print args seperated by space
+            for (int k = 1; k < argc - 1; k++) {
+                printf("%s", args[k]);
+                printf(" ");
+            }
+            // print last arg
+            printf("%s\n", args[argc - 1]);
+        } else if (strcmp(args[0], "type") == 0) {
+            handle_type(args[1]);
+        } else if (strcmp(args[0], "pwd") == 0) {
             char pwdbuf[1024];
             if (getcwd(pwdbuf, sizeof pwdbuf) == NULL) {
                 perror("getcwd"); // print err meesage
                 return 1;
             }
             printf("%s\n", pwdbuf);
-        } else if (strncmp(input, "cd ", 3) == 0) {
-            char* arg = input + 3;
-            if (strcmp(arg, "~") == 0) {
+        } else if (strcmp(args[0], "cd") == 0) {
+            if (strcmp(args[1], "~") == 0) {
                 // repoint arg to home path
-                arg = getenv("HOME");
+                args[1] = getenv("HOME");
             }
-            if (chdir(arg) != 0) {
+            if (chdir(args[1]) != 0) {
                 // strerror gets the string given errno, perror just prints it out
-                fprintf(stderr, "cd: %s: %s\n", arg, strerror(errno));
+                fprintf(stderr, "cd: %s: %s\n", args[1], strerror(errno));
             }
         }
         else {
-            handle_exec(input);
+            handle_exec(args);
         }
 
     }
